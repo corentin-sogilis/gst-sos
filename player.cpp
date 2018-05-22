@@ -17,8 +17,6 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "player.h"
-#include <QUrl>
-#include <QFileDialog>
 #include <QGlib/Connect>
 #include <QGlib/Error>
 #include <QGst/ElementFactory>
@@ -46,11 +44,33 @@ void Player::secret ()
     if (!m_pipeline) {
 		m_pipeline = QGst::Pipeline::create();
         if (m_pipeline) {
-			QGst::ElementPtr src;
-			src = QGst::ElementFactory::make("videotestsrc");
 
-			m_pipeline->add(src, m_videoSink);
-			src->link(m_videoSink);
+			QGst::CapsPtr caps = QGst::Caps::fromString (
+				"application/x-rtp, media=(string)video"
+				);
+
+			QGst::ElementPtr src = QGst::ElementFactory::make("udpsrc");
+			src->setProperty ("port", 5000);
+			src->setProperty ("caps", caps);
+//			caps->unref();
+
+			QGst::ElementPtr jitterbufferfuck = QGst::ElementFactory::make("rtpjitterbuffer");
+			QGst::ElementPtr depayfuck = QGst::ElementFactory::make("rtph264depay");
+			QGst::ElementPtr avdecfuck = QGst::ElementFactory::make("avdec_h264");
+			QGst::ElementPtr videoconvertfuck = QGst::ElementFactory::make("videoconvert");
+
+			m_pipeline->add(src,
+							jitterbufferfuck,
+							depayfuck,
+							avdecfuck,
+							videoconvertfuck,
+							m_videoSink);
+
+			src->link(jitterbufferfuck);
+			jitterbufferfuck->link(depayfuck);
+			depayfuck->link(avdecfuck);
+			avdecfuck->link(videoconvertfuck);
+			videoconvertfuck->link(m_videoSink);
 
             //watch the bus for messages
             QGst::BusPtr bus = m_pipeline->bus();
